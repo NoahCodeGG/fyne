@@ -6,6 +6,7 @@ import (
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/internal/widget"
 	"fyne.io/fyne/v2/theme"
+	"sync"
 )
 
 // Declare conformity with Widget interface.
@@ -34,12 +35,13 @@ type Table struct {
 	IsCanTappedCell func(TableCellID) bool `json:"-"` // 是否允许点击 cell 触发 Tapped
 	OnRowSelected   func(row int)          `json:"-"`
 
-	selectedCell, hoveredCell *TableCellID
-	cells                     *tableCells
-	columnWidths, rowHeights  map[int]float32
-	moveCallback              func()
-	offset                    fyne.Position
-	scroll                    *widget.Scroll
+	selectedCell, hoveredCell        *TableCellID
+	cells                            *tableCells
+	columnWidths, rowHeights         map[int]float32
+	columnWidthsLock, rowHeightsLock sync.RWMutex
+	moveCallback                     func()
+	offset                           fyne.Position
+	scroll                           *widget.Scroll
 }
 
 // NewTable returns a new performant table widget defined by the passed functions.
@@ -112,10 +114,13 @@ func (t *Table) Select(id TableCellID) {
 //
 // Since: 1.4.1
 func (t *Table) SetColumnWidth(id int, width float32) {
+	t.columnWidthsLock.Lock()
 	if t.columnWidths == nil {
 		t.columnWidths = make(map[int]float32)
 	}
 	t.columnWidths[id] = width
+	t.columnWidthsLock.Unlock()
+
 	t.Refresh()
 	t.scroll.Refresh()
 }
@@ -126,10 +131,13 @@ func (t *Table) SetColumnWidth(id int, width float32) {
 //
 // Since: 2.3
 func (t *Table) SetRowHeight(id int, height float32) {
+	t.rowHeightsLock.Lock()
 	if t.rowHeights == nil {
 		t.rowHeights = make(map[int]float32)
 	}
 	t.rowHeights[id] = height
+	t.rowHeightsLock.Unlock()
+
 	t.Refresh()
 	t.scroll.Refresh()
 }
@@ -288,9 +296,11 @@ func (t *Table) findX(col int) (cellX float32, cellWidth float32) {
 		}
 
 		width := cellSize.Width
+		t.columnWidthsLock.RLock()
 		if w, ok := t.columnWidths[i]; ok {
 			width = w
 		}
+		t.columnWidthsLock.RUnlock()
 		cellWidth = width
 	}
 	return
@@ -304,9 +314,11 @@ func (t *Table) findY(row int) (cellY float32, cellHeight float32) {
 		}
 
 		height := cellSize.Height
+		t.rowHeightsLock.RLock()
 		if h, ok := t.rowHeights[i]; ok {
 			height = h
 		}
+		t.rowHeightsLock.RUnlock()
 		cellHeight = height
 	}
 	return
@@ -342,9 +354,11 @@ func (t *Table) visibleColumnWidths(colWidth float32, cols int) (visible map[int
 
 	for i := 0; i < cols; i++ {
 		width := colWidth
+		t.columnWidthsLock.RLock()
 		if w, ok := t.columnWidths[i]; ok {
 			width = w
 		}
+		t.columnWidthsLock.RUnlock()
 
 		if colOffset <= t.offset.X-width-theme.Padding() {
 			// before scroll
@@ -379,9 +393,11 @@ func (t *Table) visibleRowHeights(rowHeight float32, rows int) (visible map[int]
 
 	for i := 0; i < rows; i++ {
 		height := rowHeight
+		t.rowHeightsLock.RLock()
 		if h, ok := t.rowHeights[i]; ok {
 			height = h
 		}
+		t.rowHeightsLock.RUnlock()
 
 		if rowOffset <= t.offset.Y-height-theme.Padding() {
 			// before scroll
@@ -728,7 +744,9 @@ func (r *tableCellsRenderer) MinSize() fyne.Size {
 	} else {
 		cellWidth := r.cells.cellSize.Width
 		for col := 0; col < cols; col++ {
+			r.cells.t.columnWidthsLock.RLock()
 			colWidth, ok := r.cells.t.columnWidths[col]
+			r.cells.t.columnWidthsLock.RUnlock()
 			if ok {
 				width += colWidth
 			} else {
@@ -743,7 +761,9 @@ func (r *tableCellsRenderer) MinSize() fyne.Size {
 	} else {
 		cellHeight := r.cells.cellSize.Height
 		for row := 0; row < rows; row++ {
+			r.cells.t.rowHeightsLock.RLock()
 			rowHeight, ok := r.cells.t.rowHeights[row]
+			r.cells.t.rowHeightsLock.RUnlock()
 			if ok {
 				height += rowHeight
 			} else {
