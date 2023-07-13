@@ -204,6 +204,7 @@ func (t *Table) ScrollTo(id TableCellID) {
 	scrollPos := t.offset
 
 	cellX, cellWidth := t.findX(id.Col)
+	cellWidth = 0 // 忽略 cell 宽度,滚动到最左边
 	if cellX < scrollPos.X {
 		scrollPos.X = cellX
 	} else if cellX+cellWidth > scrollPos.X+t.scroll.Size().Width {
