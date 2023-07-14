@@ -29,6 +29,8 @@ type DocTabs struct {
 	OnSelected     func(*TabItem)
 	OnUnselected   func(*TabItem)
 
+	customAction *fyne.Container // 自定义按钮元素
+
 	current         int
 	location        TabLocation
 	isTransitioning bool
@@ -43,6 +45,14 @@ func NewDocTabs(items ...*TabItem) *DocTabs {
 	tabs := &DocTabs{}
 	tabs.ExtendBaseWidget(tabs)
 	tabs.SetItems(items)
+	return tabs
+}
+
+func NewDocTabsWithCustomAction(customAction *fyne.Container) *DocTabs {
+	tabs := &DocTabs{}
+	tabs.ExtendBaseWidget(tabs)
+	tabs.customAction = customAction
+	tabs.Refresh()
 	return tabs
 }
 
@@ -67,7 +77,11 @@ func (t *DocTabs) CreateRenderer() fyne.WidgetRenderer {
 	}
 	r.action = r.buildAllTabsButton()
 	r.create = r.buildCreateTabsButton()
-	r.box = NewHBox(r.create, r.action)
+	if t.customAction != nil {
+		r.box = NewHBox(t.customAction, r.create, r.action)
+	} else {
+		r.box = NewHBox(r.create, r.action)
+	}
 	r.scroller.OnScrolled = func(offset fyne.Position) {
 		r.updateIndicator(false)
 	}
